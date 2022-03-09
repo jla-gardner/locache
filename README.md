@@ -1,8 +1,12 @@
-# local_cache
+# local-cache
 
 A small util library for caching the results of function calls to disk.
 
 Only intended for expensive function calls with simple arguments and keyword arguments.
+
+## Installation
+
+`pip3 install local-cache`
 
 ## Examples
 
@@ -11,7 +15,7 @@ When used in normal python scripts, `@persist` is sufficient.
 `foo.py`:
 
 ```python
-from local_cache import persist
+from locache import persist
 
 @persist
 def my_func(x, num=3):
@@ -33,7 +37,7 @@ When using python notebooks, the `name` keyword is also required:
 `bar.ipynb`:
 
 ```python
-from local_cache import persist
+from locache import persist
 
 @persist(name="notebook")
 def my_func(x, num=3):
@@ -51,10 +55,10 @@ Running this cell will lead to the creation of a `notebook.cache/` directory in 
 Resetting the cache can be achieved in two ways:
 
 -   manually deleting the relevant cache files / directories.
--   using `local_cache.reset`
+-   using `locache.reset`
 
 ```python
-from local_cache import persist, reset
+from locache import persist, reset
 
 @persist
 def foo(x):
@@ -86,7 +90,7 @@ Don't pass large data structures to persisted functions:
 
 ```python
 import numpy as np
-from local_cache import persist
+from locache import persist
 
 @persist # don't do this!
 def foo(x):
