@@ -1,4 +1,4 @@
-# local-cache
+# locache
 
 A small util library for caching the results of function calls to disk.
 
@@ -6,7 +6,7 @@ Only intended for expensive function calls with simple arguments and keyword arg
 
 ## Installation
 
-`pip3 install local-cache`
+`pip3 install locache`
 
 ## Examples
 

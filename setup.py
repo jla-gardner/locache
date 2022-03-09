@@ -5,7 +5,7 @@ HERE = pathlib.Path(__file__).parent
 README = (HERE / "README.md").read_text()
 
 setup(
-    name="local-cache",
+    name="locache",
     version="1.0.0",
     description="Cache expensive function calls to disk.",
     long_description=README,
