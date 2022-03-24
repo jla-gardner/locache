@@ -6,9 +6,17 @@ import pickle
 from shutil import rmtree as rm_rf
 
 RUNNING_PATH = abspath('.')
+VERBOSE = False
 
 
-def info(msg): print("(local_cache) " + msg)
+def verbose(val):
+    global VERBOSE
+    VERBOSE = val
+
+
+def info(msg):
+    if VERBOSE:
+        print("(local_cache) " + msg)
 
 
 def uid(func, args, kwargs):
