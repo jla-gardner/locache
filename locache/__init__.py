@@ -2,7 +2,7 @@ import functools
 import inspect
 from shutil import rmtree as rm_rf
 
-from locache.CacheEntry import CacheEntry
+from locache.LocalCache import LocalCache
 
 VERBOSE = False
 def verbose(val):
@@ -12,7 +12,6 @@ def verbose(val):
 
 def info(msg):
     '''Optionally prints a message'''
-    
     if VERBOSE:
         print(">> (locache) " + msg)
 
@@ -24,20 +23,21 @@ def persist(_func=None, *, name=None):
     '''
 
     def persist_decorator(func):
-        file_system = CacheEntry(func, name)
+        cache = LocalCache(func, name)
 
         @functools.wraps(func)
         def wrapper(*args, **kwargs):
-            _file = file_system._cache_file(func, args, kwargs)
+            _file = cache.file_path(func, args, kwargs)
 
             if _file.exists():  # cache hit: load from disk
                 info(f"Using cached result for {func.__name__}")
-                return CacheEntry.load_from_disk(_file)
-
-            # cache miss: call func and save to disk
-            info(f"Caching result for {func.__name__} in {_file}")
-            out = func(*args, **kwargs)
-            CacheEntry.save_to_disk(out, _file)
+                out = LocalCache.load_from_disk(_file)
+            
+            else: # cache miss: call func and save to disk
+                info(f"Caching result for {func.__name__} in {_file}")
+                out = func(*args, **kwargs)
+                LocalCache.save_to_disk(out, _file)
+            
             return out
 
         return wrapper
@@ -51,9 +51,9 @@ def persist(_func=None, *, name=None):
 def reset(func, name=None):
 
     # remove @persist wrapper
-    _file_system = CacheEntry(inspect.unwrap(func), name)
+    cache = LocalCache(inspect.unwrap(func), name)
     
     info(f"WARNING: Resetting {func.__name__}'s cache.")
-    rm_rf(_file_system._cache_dir)
+    rm_rf(cache._cache_dir)
 
 

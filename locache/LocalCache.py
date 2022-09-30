@@ -1,12 +1,11 @@
 from pathlib import Path
 import inspect
-from os.path import abspath
 from os import makedirs as make_dir
 import pickle
 
-RUNNING_PATH = Path(abspath('.'))
+RUNNING_PATH = Path('.').absolute()
 
-class CacheEntry:
+class LocalCache:
     def __init__(self, func, name=None) -> None:
         self._func = func
         self._name = name
@@ -15,13 +14,18 @@ class CacheEntry:
     def _cache_dir(self):
         return _get_cache_dir(self._func, self._name)
     
-    def _cache_file(self, func, args, kwargs):
-        parts = [func.__name__]
-        if args:
-            parts.append("_".join(map(str, args)))
-        if kwargs:
-            parts.append("_".join(f"{k}={v}" for k, v in kwargs.items()))
-        return self._cache_dir / "__".join(parts)
+    def file_path(self, func, args, kwargs):
+        signature = inspect.signature(func)
+        params = signature.bind(*args, **kwargs)
+        params.apply_defaults()
+
+        arguments = [*params.arguments.items()]
+        _arguments, _kwargs = arguments[:-1], arguments[-1][1]
+        _kwargs = {k: _kwargs[k] for k in sorted(_kwargs.keys())}
+        arguments = [*_arguments, *_kwargs.items()]
+
+        filename = '_'.join(f'{k}={v}' for k, v in arguments)
+        return self._cache_dir / filename
 
     @classmethod
     def load_from_disk(cls, _file):
@@ -41,7 +45,7 @@ def _get_cache_dir(func, dirname=None):
         _dir = RUNNING_PATH / f"{dirname}.cache"
     else:
         # get the file that func is defined in
-        func_file = Path(abspath(inspect.getfile(func)))
+        func_file = Path(inspect.getfile(func)).absolute()
         _dir = func_file.with_suffix(".py.cache")
     
     _dir = _dir / func.__name__
