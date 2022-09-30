@@ -28,7 +28,7 @@ my_func(1)        # returns 3
 my_func(2, num=2) # returns 4
 ```
 
-Running `foo.py` will lead to the creation of a `foo.py.cache/my_func/` directory, with files `x=1_num=3` and `x=2_num=2`.
+Running `foo.py` will lead to the creation of a `foo.cache/my_func/` directory, with files `x=1_num=3` and `x=2_num=2`.
 
 ### Notebooks
 
@@ -64,7 +64,7 @@ from locache import persist, reset_cache
 
 @persist
 def foo(x):
-    print("hello from foo")
+    print("Hi from foo!")
     return x ** 2
 
 foo(1) # prints "Hi from foo!", returns 3
