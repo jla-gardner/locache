@@ -1,8 +1,8 @@
 # locache
 
-A small util library for caching the results of function calls to disk.
-
-Only intended for expensive function calls with simple arguments and keyword arguments.
+A small utility library for caching the results of deterministic and pure function calls to disk.
+This ability is only intended for use on expensive function calls with simple arguments and keyword arguments.
+The cache can optionally invalidate itself if changes to the function's source code are detetcted.
 
 ## Installation
 
@@ -28,7 +28,7 @@ my_func(1)        # returns 3
 my_func(2, num=2) # returns 4
 ```
 
-Running `foo.py` will lead to the creation of a `foo.py.cache/` directory, with files `my_func__1__num=3` and `my_func__2__num=2`.
+Running `foo.py` will lead to the creation of a `foo.py.cache/my_func/` directory, with files `x=1_num=3` and `x=2_num=2`.
 
 ### Notebooks
 
@@ -48,17 +48,19 @@ my_func(1)        # prints "Hi from foo!", returns 3
 my_func(1)        # returns 3
 ```
 
-Running this cell will lead to the creation of a `notebook.cache/` directory in the same directory as the notebook.
+Running this cell will lead to the creation of a `notebook.cache/my_func/` directory in the same directory as the notebook.
 
-### Resetting the Cache
+## Resetting the Cache
 
-Resetting the cache can be achieved in two ways:
+By default, the cache is invalidated and reset if source code changes to the function in question are dedicated.
+This behaviour can be surpressed: `@persist(auto_invalidate=False)`
 
--   manually deleting the relevant cache files / directories.
--   using `locache.reset`
+Results for specific function calls can be removed from the cache by deleting the appropriate file.
+
+Programmatic resetting of the cache is also possible:
 
 ```python
-from locache import persist, reset
+from locache import persist, reset_cache
 
 @persist
 def foo(x):
@@ -68,7 +70,7 @@ def foo(x):
 foo(1) # prints "Hi from foo!", returns 3
 foo(1) # returns 3
 
-reset(foo)
+reset_cache(foo)
 
 foo(1) # prints "Hi from foo!", returns 3
 ```
@@ -81,7 +83,15 @@ def foo(x):
     return x**2
 
 foo(1)
-reset(foo, name="notebook")
+reset_cache(foo, name="notebook")
+```
+
+## Logging
+
+Cache logging can optionally be enabled:
+
+```python
+from locache import verbose; verbose(True)
 ```
 
 ## Anti-Examples

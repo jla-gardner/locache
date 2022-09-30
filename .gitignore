@@ -1,7 +1,8 @@
 __pycache__/*
 *.py[cod]
 *.egg-info
-*.cache/*
+**/*.cache/*
 dist/*
 build/*
 .vscode/*
+scratch*
