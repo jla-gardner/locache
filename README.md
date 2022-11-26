@@ -1,4 +1,5 @@
 # locache
+![PyPI - Downloads](https://img.shields.io/pypi/dm/locache?color=green&label=Downloads&logo=Python&logoColor=white)
 
 A small utility library for caching the results of deterministic and pure function calls to disk.
 This ability is only intended for use on expensive function calls with simple arguments and keyword arguments.
