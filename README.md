@@ -1,6 +1,7 @@
 # locache
-![PyPI - Downloads](https://img.shields.io/pypi/dm/locache?color=green&label=Downloads&logo=Python&logoColor=white&style=for-the-badge)
-![GitHub](https://img.shields.io/github/license/jla-gardner/local-cache?style=for-the-badge)
+[![PyPI](https://img.shields.io/pypi/v/locache?style=for-the-badge)](https://pypi.org/project/locache/)
+[![PyPI - Downloads](https://img.shields.io/pypi/dm/locache?color=green&label=Downloads&logo=Python&logoColor=white&style=for-the-badge)](https://pypistats.org/packages/locache)
+[![GitHub](https://img.shields.io/github/license/jla-gardner/local-cache?style=for-the-badge)](LICENCE.md)
 
 A small utility library for caching the results of deterministic and pure function calls to disk.
 This ability is only intended for use on expensive function calls with simple arguments and keyword arguments.
