@@ -6,7 +6,7 @@ README = (HERE / "README.md").read_text()
 
 setup(
     name="locache",
-    version="2.0.1",
+    version="2.1.1",
     description="Cache expensive function calls to disk.",
     long_description=README,
     long_description_content_type="text/markdown",
