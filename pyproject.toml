@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=61.0.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "locache"
+version = "2.1.1"
+description = "Cache expensive function calls to disk."
+readme = "README.md"
+authors = [{ name = "John Gardner", email = "gardner.john97@gmail.com" }]
+license = { file = "LICENSE.md" }
+classifiers = [
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3",
+]
+keywords = ["cache", "disk"]
+dependencies = ["astor"]
+requires-python = ">=3.6"
+
+[project.optional-dependencies]
+dev = ["pytest", "black", "bumpver", "sphinx", "furo"]
+
+[project.urls]
+Homepage = "https://github.com/jla-gardner/locache"
