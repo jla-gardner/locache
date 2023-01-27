@@ -60,14 +60,14 @@ class LocalCache:
         return out
 
 
-def get_cache_location(func: Callable = None, name: str = None):
-    if func is None and name is None:
-        raise ValueError("Pass either a function or a name.")
+def get_cache_location(func: Callable, name: str = None):
 
-    if func is not None:
-        return get_file_containing(func).with_suffix(".cache")
+    if name is not None:
+        prefix = RUNNING_PATH / f"{name}.cache"
+    else:
+        prefix = get_file_containing(func).with_suffix(".cache")
 
-    return RUNNING_PATH / f"{name}.cache"
+    return prefix / f"{func.__name__}"
 
 
 def _setup(cache_location: Path, func: Callable, auto_invalidate: bool):
@@ -92,8 +92,7 @@ def _setup(cache_location: Path, func: Callable, auto_invalidate: bool):
 def file_name_for(func, args, kwargs):
     signature = get_full_signature(func, args, kwargs)
 
-    SEP = "~"  # an illegal python variable name, and unlikely to be in a string
-
+    SEP = "~"  # an illegal python variable char, and unlikely to be in an arg
     return SEP.join(f"{k}={stringify(v)}" for k, v in signature.items())
 
 

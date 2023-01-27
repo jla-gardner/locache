@@ -30,6 +30,8 @@ def relative_path_to(path: Path):
 
 
 def remove_decorator(code: str, decorator_name: str):
+    code = textwrap.dedent(code)
+
     def is_my_decorator(node):
         if isinstance(node, ast.Name):
             return node.id == decorator_name
@@ -60,5 +62,4 @@ def remove_decorator(code: str, decorator_name: str):
 
 def get_source_code_for(func):
     code = inspect.getsource(func)
-    code = textwrap.dedent(code)
     return remove_decorator(code, "persist")

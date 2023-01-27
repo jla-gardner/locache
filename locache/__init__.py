@@ -4,6 +4,7 @@ from typing import Callable
 
 from locache.base import LocalCache, get_cache_location, reset
 from locache.logging import verbose
+from locache.util import RUNNING_PATH
 
 
 def persist(function=None, *, name: str = None, auto_invalidate=True):
@@ -53,7 +54,11 @@ def reset_cache(func: Callable = None, name: str = None) -> None:
     reset the cache for a function
     """
 
-    location = get_cache_location(func, name)
+    if func is None:
+        location = RUNNING_PATH / f"{name}.cache"
+    else:
+        location = get_cache_location(func, name)
+
     if location.exists():
         reset(location)
     else:

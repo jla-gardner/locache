@@ -1,7 +1,7 @@
 import functools
 
 from locache import persist, reset_cache, verbose
-from locache.code_inspection import get_source_code_for
+from locache.util import get_source_code_for
 
 verbose(True)
 NUM_CALLS = 0
@@ -73,7 +73,6 @@ def test_code_inspection():
         pass
 
     code = get_source_code_for(foo)
-    print(code)
     assert code == "@decorator\ndef foo():\n    pass\n"
 
     @decorator
@@ -82,10 +81,18 @@ def test_code_inspection():
         pass
 
     code = get_source_code_for(foo)
-    print(code)
     assert code == "def foo():\n    pass\n"
+
+
+def test():
+    @persist(name="testing")
+    def bar(a, b):
+        return a + b
+
+    assert bar(1, 2) == 3
 
 
 if __name__ == "__main__":
     test_foo()
     test_code_inspection()
+    test()
