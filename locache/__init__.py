@@ -1,50 +1,60 @@
 import functools
-import inspect
-import os
+import warnings
+from typing import Callable
 
-from locache.LocalCache import LocalCache, RUNNING_PATH
-from locache.logging import info, verbose
+from locache.base import LocalCache, get_cache_location, reset
+from locache.logging import verbose
 
 
-def persist(_func=None, *, name=None, auto_invalidate=True):
-    '''
-    decorator that caches the return value of a function to 
-    permanent memory for a given set of args and kwargs
-    '''
+def persist(function=None, *, name: str = None, auto_invalidate=True):
+    """
+    decorator for caching function results to disk
+
+    If the function bar is defined in foo.py, then the results
+    will be stored in ./foo.cache/bar/, unless a name is specified,
+    in which case the results will be stored in ./name.cache/foo/.
+
+    Args:
+        function: the function to cache
+        name: the name of the cache (if not specified, the function name is used)
+        auto_invalidate: if True, the cache will be invalidated if the function code changes
+
+    Returns:
+        the decorator
+
+    Example:
+        @persist
+        def add(a, b):
+            return a + b
+
+        @persist(name="addition")
+        def add(a, b, c):
+            return a + b + c
+    """
 
     def persist_decorator(func):
-        cache = LocalCache(func, name, auto_invalidate)
+        location = get_cache_location(func, name)
+        cache = LocalCache(func, location, auto_invalidate)
 
         @functools.wraps(func)
         def wrapper(*args, **kwargs):
-            _file = cache.file_path(args, kwargs)
-            _relative_path = os.path.relpath(_file, RUNNING_PATH)
-
-            if _file.exists():  # cache hit: load from disk
-                info(
-                    f"Using cached result for {func.__name__} "
-                    f"from {_relative_path}"
-                )
-                out = LocalCache.load_from_disk(_file)
-
-            else:  # cache miss: call func and save to disk
-                info(
-                    f"Caching result for {func.__name__} "
-                    f"in {_relative_path}"
-                )
-                out = func(*args, **kwargs)
-                LocalCache.save_to_disk(out, _file)
-
-            return out
+            return cache.call(*args, **kwargs)
 
         return wrapper
 
-    if _func == None:  # called as @persist(name=...)
+    if function == None:  # called as @persist(name=...)
         return persist_decorator
-    else:              # called as @persist
-        return persist_decorator(_func)
+    else:  # called as @persist
+        return persist_decorator(function)
 
 
-def reset_cache(func, name=None):
-    cache = LocalCache(inspect.unwrap(func), name)
-    cache.reset()
+def reset_cache(func: Callable = None, name: str = None) -> None:
+    """
+    reset the cache for a function
+    """
+
+    location = get_cache_location(func, name)
+    if location.exists():
+        reset(location)
+    else:
+        warnings.warn(f"Attempted to reset cache at {location}, but it does not exist")

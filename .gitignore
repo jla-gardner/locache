@@ -1,9 +1,10 @@
-__pycache__/*
+**/__pycache__/
 *.py[cod]
 *.egg-info
-**/*.cache/*
+**/*.cache/
 dist/*
 build/*
 .vscode/*
+.isort.cfg
 scratch*
 **/.DS_Store
