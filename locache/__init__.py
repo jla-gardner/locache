@@ -4,52 +4,10 @@ import pickle
 from functools import partial
 from hashlib import sha256
 from pathlib import Path
+from typing import Callable, Union
 
 __all__ = ["persist", "verbose"]
 __version__ = "2.1.1"
-
-
-def persist(func=None, *, auto_invalidate=True):
-    """
-    decorator for caching function results to disk
-
-    If the function bar is defined in foo.py, then the results
-    will be stored in ./foo.cache/bar/
-
-    Args:
-        function: the function to cache
-        auto_invalidate: if True, the cache will be invalidated if the function code changes
-
-    Returns:
-        the decorator
-
-    Example:
-        @persist
-        def add(a, b):
-            return a + b
-
-        @persist(auto_invalidate=False)
-        def add(a, b, c):
-            return a + b + c
-    """
-    if func is None:
-        return partial(persist, auto_invalidate=auto_invalidate)
-
-    location = get_filename_containing_(func)
-    cache = LocalCache(func, location, auto_invalidate)
-    return cache
-
-
-_logger = logging.getLogger(f"{__name__} : local_cache")
-_logger.setLevel(logging.INFO)
-_logger.addHandler(logging.StreamHandler())
-
-
-def verbose(val: bool):
-    if val:
-        _logger.setLevel(logging.DEBUG)
-    else:
-        _logger.setLevel(logging.INFO)
 
 
 class LocalCache:
@@ -60,7 +18,9 @@ class LocalCache:
 
     def __call__(self, *args, **kwargs):
         cache_path = self.backend.get_cache_path(*args, **kwargs)
-        _logger.debug(f"Querying cache at {self.backend.location} for {args}, {kwargs}")
+        _logger.debug(
+            f"Querying cache at {self.backend.location} for {args}, {kwargs}"
+        )
 
         if cache_path.exists():
             _logger.debug("Cache hit")
@@ -73,12 +33,24 @@ class LocalCache:
                 pickle.dump(result, f)
             return result
 
+    def number_of_entries(self):
+        return len(list(self.backend.location.glob("*.pkl")))
+
     def __repr__(self):
-        n = len(list(self.backend.location.glob("*.pkl")))
+        n = self.number_of_entries()
         return f"<cache for {self.func.__name__} with {n} entries>"
 
 
 class Backend:
+    """
+    A class for managing the cache directory
+
+    Args:
+        func: the function to cache
+        location: the directory where the cache is stored
+        auto_invalidate: if True, the cache will be invalidated 
+                            if the function code changes
+    """
     def __init__(self, func, location, auto_invalidate):
         self.location = location
         code_file = location / ".code.py"
@@ -91,7 +63,9 @@ class Backend:
 
         old_code = code_file.read_text()
         if auto_invalidate and new_code != old_code:
-            _logger.info(f"Detected code change for {func.__name__}. Deleting cache.")
+            _logger.info(
+                f"Detected code change for {func.__name__}. Deleting cache."
+            )
             self.location.rmdir()
             self.location.mkdir(parents=True)
             code_file.write_text(new_code)
@@ -102,8 +76,78 @@ class Backend:
         return self.location / f"{signature}.pkl"
 
 
-def get_filename_containing_(func):
+def get_directory_for_(func: Callable, root: Union[Path, str] = None):
+    """
+    get the directory where the cache for a function is stored
+    """
+
+    # if root isn't passed, we store the cache in
+    # <path-to-function's-file>.cache/<function-name>
+    # e.g. /home/user/src/foo.cache/bar/
     path = Path(inspect.getfile(func))
+
+    # unless we're in a notebook, in which case we store the cache in
+    # <cwd>/notebook.cache/<function-name>
+    # e.g. /home/user/notebook.cache/bar/
     if "ipykernel" in str(path):
-        path = Path.cwd() / "notebook.py"
+        path = Path.cwd() / "notebook.cache"
+
+    # if root is passed, we store the cache in
+    # <root>.cache/<function-name>
+    # e.g. /home/user/special_name.cache/bar/
+    if root is not None:
+        path = Path(root)
+
     return path.with_suffix(".cache") / func.__name__
+
+
+def persist(
+    func: Callable = None,
+    *,
+    root: Union[Path, str] = None,
+    auto_invalidate: bool = True,
+):
+    """
+    A decorator for caching function results to disk
+
+    If the function bar is defined in foo.py, then the results
+    will be stored in foo.cache/bar/. For notebooks, the results
+    will be stored in notebook.cache/bar/.
+
+    Args:
+        function: the function to cache
+        auto_invalidate: if True, the cache will be invalidated if the function code changes
+
+    Returns:
+        the LocalCache wrapper object
+
+    Example:
+        @persist
+        def add(a, b):
+            return a + b
+
+        @persist(auto_invalidate=False)
+        def add(a, b, c):
+            return a + b + c
+    """
+
+    if func is None:
+        # decorator called using (**kwargs), so return a partial
+        return partial(persist, root=root, auto_invalidate=auto_invalidate)
+
+    location = get_directory_for_(func, root)
+    cache = LocalCache(func, location, auto_invalidate)
+    return cache
+
+
+# LOGGING
+_logger = logging.getLogger(f"{__name__} : local_cache")
+_logger.setLevel(logging.INFO)
+_logger.addHandler(logging.StreamHandler())
+
+
+def verbose(val: bool):
+    if val:
+        _logger.setLevel(logging.DEBUG)
+    else:
+        _logger.setLevel(logging.INFO)

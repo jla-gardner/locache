@@ -8,3 +8,5 @@ build/*
 .isort.cfg
 scratch*
 **/.DS_Store
+
+.coverage
