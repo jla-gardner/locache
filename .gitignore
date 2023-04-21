@@ -10,3 +10,4 @@ scratch*
 **/.DS_Store
 
 .coverage
+coverage.xml
