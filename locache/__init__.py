@@ -1,6 +1,7 @@
 import inspect
 import logging
 import pickle
+import shutil
 from functools import partial
 from hashlib import sha256
 from pathlib import Path
@@ -48,9 +49,10 @@ class Backend:
     Args:
         func: the function to cache
         location: the directory where the cache is stored
-        auto_invalidate: if True, the cache will be invalidated 
+        auto_invalidate: if True, the cache will be invalidated
                             if the function code changes
     """
+
     def __init__(self, func, location, auto_invalidate):
         self.location = location
         code_file = location / ".code.py"
@@ -63,10 +65,10 @@ class Backend:
 
         old_code = code_file.read_text()
         if auto_invalidate and new_code != old_code:
-            _logger.info(
-                f"Detected code change for {func.__name__}. Deleting cache."
+            _logger.warning(
+                f"Detected code change for {func.__name__}. Resetting cache."
             )
-            self.location.rmdir()
+            shutil.rmtree(location)
             self.location.mkdir(parents=True)
             code_file.write_text(new_code)
 
