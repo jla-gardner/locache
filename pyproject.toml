@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "locache"
-version = "2.1.1"
+version = "3.0.0"
 description = "Cache expensive function calls to disk."
 readme = "README.md"
 authors = [{ name = "John Gardner", email = "gardner.john97@gmail.com" }]
@@ -25,7 +25,7 @@ dev = ["pytest", "pytest-cov", "bumpver", "sphinx", "furo"]
 Homepage = "https://github.com/jla-gardner/locache"
 
 [tool.bumpver]
-current_version = "2.1.1"
+current_version = "3.0.0"
 version_pattern = "MAJOR.MINOR.PATCH"
 commit_message = "Bump version {old_version} -> {new_version}"
 commit = true
