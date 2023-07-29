@@ -2,144 +2,150 @@ import inspect
 import logging
 import pickle
 import shutil
-from functools import partial
+from functools import wraps
 from hashlib import sha256
 from pathlib import Path
-from typing import Callable, Union
+from typing import Callable
 
-__all__ = ["persist", "verbose"]
+__all__ = ["persist", "verbose", "reset"]
 __version__ = "3.0.0"
 
 
-class LocalCache:
-    def __init__(self, func, location, auto_invalidate=False):
-        self.func = func
-        self.backend = Backend(func, location, auto_invalidate)
-        self.__doc__ = func.__doc__
+def persist(func: Callable):
+    """
+    decorator for caching expensive function calls to disk
 
-    def __call__(self, *args, **kwargs):
-        cache_path = self.backend.get_cache_path(*args, **kwargs)
-        _logger.debug(
-            f"Querying cache at {self.backend.location} for {args}, {kwargs}"
-        )
+    Parameters
+    ----------
+    func : Callable
+        the function to cache. In order to be cache-able,
+        all arguments and return value must be pickleable.
+
+    Returns
+    -------
+    Callable
+        the decorated function
+    """
+
+    location = _prepare_cache_location(func)
+
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        cache_path = location / _get_hash(args, kwargs)
 
         if cache_path.exists():
-            _logger.debug("Cache hit")
+            log(f"cache hit for {func.__name__} with {args}, {kwargs}")
             with open(cache_path, "rb") as f:
-                return pickle.load(f)
+                result = pickle.load(f)
+
         else:
-            _logger.debug("Cache miss")
-            result = self.func(*args, **kwargs)
+            log(f"cache miss for {func.__name__} with {args}, {kwargs}")
+            result = func(*args, **kwargs)
             with open(cache_path, "wb") as f:
                 pickle.dump(result, f)
-            return result
 
-    def number_of_entries(self):
-        return len(list(self.backend.location.glob("*.pkl")))
+        return result
 
-    def __repr__(self):
-        n = self.number_of_entries()
-        return f"<cache for {self.func.__name__} with {n} entries>"
+    return wrapper
 
 
-class Backend:
+def reset(func):
     """
-    A class for managing the cache directory
+    reset the cache for a function
 
-    Args:
-        func: the function to cache
-        location: the directory where the cache is stored
-        auto_invalidate: if True, the cache will be invalidated
-                            if the function code changes
+    Parameters
+    ----------
+    func : Callable
+        the function to reset the cache for
+    """
+    # unwrap the function if it's wrapped by @persist
+    func = getattr(func, "__wrapped__", func)
+    _prepare_cache_location(func, reset=True)
+
+
+def _prepare_cache_location(func, reset=False) -> Path:
+    """
+    Prepare the cache location for a function
     """
 
-    def __init__(self, func, location, auto_invalidate):
-        self.location = location
-        code_file = location / ".code.py"
-        new_code = inspect.getsource(func)
+    location = _get_cache_location_for(func)
+    code_file = location / ".code.py"
+    old_code = code_file.read_text() if code_file.exists() else None
+    new_code = inspect.getsource(func)
 
-        if not location.exists() or not code_file.exists():
-            location.mkdir(parents=True, exist_ok=True)
-            code_file.write_text(new_code)
-            return
+    if location.exists() and old_code is not None:
+        if old_code == new_code and not reset:
+            # nothing to do
+            return location
 
-        old_code = code_file.read_text()
-        if auto_invalidate and new_code != old_code:
-            _logger.warning(
-                f"Detected code change for {func.__name__}. Resetting cache."
+        if old_code != new_code:
+            log(
+                f"detected a change in {func.__name__}'s code",
+                level=logging.WARNING,
             )
-            shutil.rmtree(location)
-            self.location.mkdir(parents=True)
-            code_file.write_text(new_code)
+            reset = True
 
-    def get_cache_path(self, *args, **kwargs):
-        dump = pickle.dumps((args, kwargs))
-        signature = sha256(dump).hexdigest()[:32]
-        return self.location / f"{signature}.pkl"
+    if reset:
+        log(f"resetting the cache for {func.__name__}", level=logging.WARNING)
+        shutil.rmtree(location, ignore_errors=True)
+
+    location.mkdir(parents=True, exist_ok=True)
+    code_file.write_text(new_code)
+    log(f"created cache for {func.__name__}: {location}")
+
+    return location
 
 
-def get_directory_for_(func: Callable, root: Union[Path, str] = None):
+def _get_cache_location_for(func) -> Path:
     """
-    get the directory where the cache for a function is stored
+    get the cache location for a function
+
+    this should work wherever the function is defined,
+    i.e. in a file somewhere, in a notebook, or in an
+    interactive session
+
+    Parameters
+    ----------
+    func : Callable
+        the function to cache
     """
 
-    # if root isn't passed, we store the cache in
-    # <path-to-function's-file>.cache/<function-name>
-    # e.g. /home/user/src/foo.cache/bar/
-    path = Path(inspect.getfile(func))
+    # default case: func is defined in a file:
+    # location = <path-to-function's-file>.cache/<function-name>
+    path = Path(inspect.getfile(func)).with_suffix(".cache")
 
-    # unless we're in a notebook, in which case we store the cache in
+    # if we're in an interactive session, we store the cache in
+    # <cwd>/.cache/<function-name>
+    if path.name == "<stdin>":
+        path = Path.cwd() / ".cache"
+
+    # if we're in a notebook, we store the cache in
     # <cwd>/notebook.cache/<function-name>
-    # e.g. /home/user/notebook.cache/bar/
     if "ipykernel" in str(path):
         path = Path.cwd() / "notebook.cache"
 
-    # if root is passed, we store the cache in
-    # <root>.cache/<function-name>
-    # e.g. /home/user/special_name.cache/bar/
-    if root is not None:
-        path = Path(root)
-
-    return path.with_suffix(".cache") / func.__name__
+    return path / func.__name__
 
 
-def persist(
-    func: Callable = None,
-    *,
-    root: Union[Path, str] = None,
-    auto_invalidate: bool = True,
-):
+def _get_hash(args, kwargs) -> str:
     """
-    A decorator for caching function results to disk
+    get a hash of the function arguments
 
-    If the function bar is defined in foo.py, then the results
-    will be stored in foo.cache/bar/. For notebooks, the results
-    will be stored in notebook.cache/bar/.
+    Parameters
+    ----------
+    args : tuple
+        the positional arguments
+    kwargs : dict
+        the keyword arguments
 
-    Args:
-        function: the function to cache
-        auto_invalidate: if True, the cache will be invalidated if the function code changes
-
-    Returns:
-        the LocalCache wrapper object
-
-    Example:
-        @persist
-        def add(a, b):
-            return a + b
-
-        @persist(auto_invalidate=False)
-        def add(a, b, c):
-            return a + b + c
+    Returns
+    -------
+    str
+        the hash of the arguments
     """
 
-    if func is None:
-        # decorator called using (**kwargs), so return a partial
-        return partial(persist, root=root, auto_invalidate=auto_invalidate)
-
-    location = get_directory_for_(func, root)
-    cache = LocalCache(func, location, auto_invalidate)
-    return cache
+    dump = pickle.dumps((args, kwargs))
+    return sha256(dump).hexdigest()[:32]
 
 
 # LOGGING
@@ -148,8 +154,25 @@ _logger.setLevel(logging.INFO)
 _logger.addHandler(logging.StreamHandler())
 
 
-def verbose(val: bool):
-    if val:
-        _logger.setLevel(logging.DEBUG)
-    else:
-        _logger.setLevel(logging.INFO)
+def verbose(yes=True):
+    """
+    set the verbosity of the logging
+
+    Parameters
+    ----------
+    yes : bool, optional
+        whether to log or not, by default True
+    """
+    _logger.setLevel(logging.DEBUG if yes else logging.INFO)
+
+
+def log(msg: str, level=logging.DEBUG):
+    """
+    log a message
+
+    Parameters
+    ----------
+    msg : str
+        the message to log
+    """
+    _logger.log(level, msg)
