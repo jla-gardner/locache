@@ -1,15 +1,16 @@
 # locache
+
 [![PyPI](https://img.shields.io/pypi/v/locache?style=for-the-badge)](https://pypi.org/project/locache/)
 [![PyPI - Downloads](https://img.shields.io/pypi/dm/locache?color=green&label=Downloads&logo=Python&logoColor=white&style=for-the-badge)](https://pypistats.org/packages/locache)
 [![GitHub](https://img.shields.io/github/license/jla-gardner/local-cache?style=for-the-badge)](LICENCE.md)
 
 A small utility library for caching the results of deterministic and pure function calls to disk.
-This ability is only intended for use on expensive function calls with simple arguments and keyword arguments.
-The cache can optionally invalidate itself if changes to the function's source code are detetcted.
+
+By default, these cache's invalidate themselves if changes to the function's source code are detetcted.
 
 ## Installation
 
-`pip3 install locache`
+`pip install locache`
 
 ## Examples
 
@@ -95,20 +96,4 @@ Cache logging can optionally be enabled:
 
 ```python
 from locache import verbose; verbose(True)
-```
-
-## Anti-Examples
-
-Don't pass large data structures to persisted functions:
-
-```python
-import numpy as np
-from locache import persist
-
-@persist # don't do this!
-def foo(x):
-    return np.sum(x * x)
-
-arr = np.ones(10) + np.randn(10)
-foo(arr)
 ```

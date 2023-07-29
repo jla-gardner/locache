@@ -19,7 +19,7 @@ dependencies = ["astor"]
 requires-python = ">=3.6"
 
 [project.optional-dependencies]
-dev = ["pytest", "pytest-cov", "bumpver", "sphinx", "furo"]
+dev = ["pytest", "pytest-cov", "bumpver"]
 
 [project.urls]
 Homepage = "https://github.com/jla-gardner/locache"
