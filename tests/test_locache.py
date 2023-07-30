@@ -3,17 +3,15 @@ from pathlib import Path
 
 import pytest
 
-from locache import persist, verbose
+from locache import persist, reset, verbose
 
 
 @pytest.fixture(autouse=True)
-def reset():
-    # before any tests are run, we need to
+def reset_env():
+    # before each test is run, we need to
     # delete any previously created cache files
     cache_dir = Path(__file__).with_suffix(".cache")
-    if cache_dir.exists():
-        shutil.rmtree(cache_dir)
-
+    shutil.rmtree(cache_dir, ignore_errors=True)
     verbose(False)
 
 
@@ -69,3 +67,58 @@ def test_verbosity(caplog):
     verbose(False)
     squared(4)
     assert caplog.text.count("cache miss") == 1, "logging should be off again"
+
+
+def test_reset():
+    num_calls = 0
+
+    @persist
+    def squared(a):
+        nonlocal num_calls
+        num_calls += 1
+        return a**2
+
+    squared(3)
+    assert num_calls == 1, "function has been called once"
+
+    squared(3)
+    assert num_calls == 1, "second call should be cached"
+
+    squared(4)
+    assert num_calls == 2, "function should be called again"
+
+    reset(squared)
+    squared(3)
+    assert num_calls == 3, "function should be called again"
+
+
+def test_normal_location():
+    @persist
+    def squared(a):
+        return a**2
+
+    squared(3)
+    location = Path(__file__).with_suffix(".cache") / "squared"
+    assert location.exists(), "cache location should exist"
+    assert (location / ".code.py").exists(), "code file should exist"
+
+
+def test_no_change():
+    num_calls = 0
+
+    @persist
+    def squared(a):
+        nonlocal num_calls
+        num_calls += 1
+        return a**2
+
+    squared(3)
+
+    @persist
+    def squared(a):
+        nonlocal num_calls
+        num_calls += 1
+        return a**2
+
+    squared(3)
+    assert num_calls == 1, "function should not be called again"
