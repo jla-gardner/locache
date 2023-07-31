@@ -122,3 +122,46 @@ def test_no_change():
 
     squared(3)
     assert num_calls == 1, "function should not be called again"
+
+
+# mock some functions to mimic being in a REPL and notebook environment
+
+# mock inspect.getfile
+
+
+@pytest.fixture
+def in_repl(monkeypatch):
+    def mock_getfile(func):
+        return "<stdin>"
+
+    monkeypatch.setattr("inspect.getfile", mock_getfile)
+
+
+def test_in_repl(in_repl, caplog):
+    @persist
+    def squared(a):
+        return a**2
+
+    assert "not supported" in caplog.text, "REPL should not be supported"
+
+    # test that we can still use the function
+    assert squared(3) == 9, "function not working"
+
+
+@pytest.fixture
+def in_notebook(monkeypatch):
+    def mock_getfile(func):
+        return "ipykernel"
+
+    monkeypatch.setattr("inspect.getfile", mock_getfile)
+    monkeypatch.setattr(
+        "inspect.getsource", lambda x: "def squared(a):\n    return a**2"
+    )
+
+
+def test_in_notebook(in_notebook):
+    @persist
+    def squared(a):
+        return a**2
+
+    assert squared(3) == 9, "function not working"
