@@ -1,22 +1,38 @@
-# locache
+# `locache` - a local cache for Python
 
-[![PyPI](https://img.shields.io/pypi/v/locache?style=for-the-badge)](https://pypi.org/project/locache/)
-[![PyPI - Downloads](https://img.shields.io/pypi/dm/locache?color=green&label=Downloads&logo=Python&logoColor=white&style=for-the-badge)](https://pypistats.org/packages/locache)
-[![GitHub](https://img.shields.io/github/license/jla-gardner/local-cache?style=for-the-badge)](LICENCE.md)
+<div align="center">
 
-A small utility library for caching the results of deterministic and pure function calls to disk.
+[![PyPI](https://img.shields.io/pypi/v/locache)](https://pypi.org/project/locache/)
+[![PyPI - Downloads](https://img.shields.io/pypi/dm/locache?color=green&label=Downloads&logo=Python&logoColor=white)](https://pypistats.org/packages/locache)
+[![GitHub](https://img.shields.io/github/license/jla-gardner/local-cache)](LICENCE.md)
 
-By default, these cache's invalidate themselves if changes to the function's source code are detetcted.
+[![](https://github.com/jla-gardner/load-atoms/actions/workflows/tests.yaml/badge.svg?branch=main)](https://github.com/jla-gardner/load-atoms/actions/workflows/tests.yaml)
+[![codecov](https://codecov.io/gh/jla-gardner/locache/branch/master/graph/badge.svg?token=VGSFM0GWF1)](https://codecov.io/gh/jla-gardner/locache)
+</div>
+
+---
+
+A single-file utility library for caching the results of deterministic and pure function calls to disk, exposed via the [`@persist`](#persist) decorator.
+
+These caches are persistent across runs of the program. If changes to the function's source code are detected, the cache is reset. This can also be manually performed with the `reset` function.
 
 ## Installation
 
+`locache` is simple enough that you could have written it yourself. To use it in your project, either:
+- copy the [`locache.py`](locache.py) file into your project
+- install it with
 `pip install locache`
 
-## Examples
+## Usage
 
-When used in normal python scripts, `@persist` is sufficient.
+`locache` provides 3 importable functions:
+- the `@persist` decorator
+- `reset`
+- `verbose`
 
-`foo.py`:
+### `@persist`
+
+Wrap a pure function with `@persist` to cache its results to disk. The only stipulation is that the function's arguments and return value must be pickle-able.
 
 ```python
 from locache import persist
@@ -26,74 +42,42 @@ def my_func(x, num=3):
     print("Hi from foo!")
     return x * num
 
-my_func(1)        # prints "Hi from foo!", returns 3
-my_func(2, num=2) # prints "Hi from foo!", returns 4
-my_func(1)        # returns 3
-my_func(2, num=2) # returns 4
+my_func(1)        
+# prints "Hi from foo!", returns 3
+my_func(2, num=2) 
+# prints "Hi from foo!", returns 4
+my_func(1)        
+# returns 3
 ```
 
-Running `foo.py` will lead to the creation of a `foo.cache/my_func/` directory, with files `x=1_num=3` and `x=2_num=2`.
+### `reset(func: Callable)`
 
-### Notebooks
-
-When using python notebooks, the `name` keyword is also required:
-
-`bar.ipynb`:
+Reset the cache for a given function.
 
 ```python
-from locache import persist
+from locache import reset
 
-@persist(name="notebook")
-def my_func(x, num=3):
-    print("Hi from foo!")
-    return x * num
-
-my_func(1)        # prints "Hi from foo!", returns 3
-my_func(1)        # returns 3
+reset(my_func)
+my_func(1) # prints "Hi from foo!", returns 3
 ```
 
-Running this cell will lead to the creation of a `notebook.cache/my_func/` directory in the same directory as the notebook.
 
-## Resetting the Cache
+### `verbose(yes: bool = True)`
 
-By default, the cache is invalidated and reset if source code changes to the function in question are dedicated.
-This behaviour can be surpressed: `@persist(auto_invalidate=False)`
-
-Results for specific function calls can be removed from the cache by deleting the appropriate file.
-
-Programmatic resetting of the cache is also possible:
+Turn on verbose logging.
 
 ```python
-from locache import persist, reset_cache
+from locache import verbose
 
-@persist
-def foo(x):
-    print("Hi from foo!")
-    return x ** 2
+reset(my_func)
+verbose(yes=True)
 
-foo(1) # prints "Hi from foo!", returns 3
-foo(1) # returns 3
+my_func(1) 
+# prints "cache miss for squared(1)"
+# prints "Hi from foo!"
+# returns 3
 
-reset_cache(foo)
-
-foo(1) # prints "Hi from foo!", returns 3
-```
-
-In a notebook setting, the relevant name needs to also be passed:
-
-```python
-@persist(name="notebook")
-def foo(x):
-    return x**2
-
-foo(1)
-reset_cache(foo, name="notebook")
-```
-
-## Logging
-
-Cache logging can optionally be enabled:
-
-```python
-from locache import verbose; verbose(True)
+my_func(1)
+# prints "cache hit for squared(1)"
+# returns 3
 ```
