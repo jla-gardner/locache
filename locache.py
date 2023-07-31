@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Callable, Optional
 
 __all__ = ["persist", "verbose", "reset"]
-__version__ = "3.0.0"
+__version__ = "3.0.1"
 
 
 def persist(func: Callable):
