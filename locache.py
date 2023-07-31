@@ -5,7 +5,7 @@ import shutil
 from functools import wraps
 from hashlib import sha256
 from pathlib import Path
-from typing import Callable
+from typing import Callable, Optional
 
 __all__ = ["persist", "verbose", "reset"]
 __version__ = "3.0.0"
@@ -28,6 +28,11 @@ def persist(func: Callable):
     """
 
     location = _prepare_cache_location(func)
+
+    if location is None:
+        # if the cache location can't be prepared, we just
+        # return the original function
+        return func
 
     @wraps(func)
     def wrapper(*args, **kwargs):
@@ -63,12 +68,19 @@ def reset(func):
     _prepare_cache_location(func, reset=True)
 
 
-def _prepare_cache_location(func, reset=False) -> Path:
+def _prepare_cache_location(func, reset=False) -> Optional[Path]:
     """
     Prepare the cache location for a function
     """
 
     location = _get_cache_location_for(func)
+    if location is None:
+        log(
+            f"locache is not supported for functions defined in the REPL",
+            level=logging.WARNING,
+        )
+        return None
+
     code_file = location / ".code.py"
     old_code = code_file.read_text() if code_file.exists() else None
     new_code = inspect.getsource(func)
@@ -96,7 +108,7 @@ def _prepare_cache_location(func, reset=False) -> Path:
     return location
 
 
-def _get_cache_location_for(func) -> Path:
+def _get_cache_location_for(func) -> Optional[Path]:
     """
     get the cache location for a function
 
@@ -110,18 +122,19 @@ def _get_cache_location_for(func) -> Path:
         the function to cache
     """
 
+    file: str = inspect.getfile(func)
+
+    # filter out if in a REPL
+    if file == "<stdin>":
+        return None
+
     # default case: func is defined in a file:
     # location = <path-to-function's-file>.cache/<function-name>
-    path = Path(inspect.getfile(func)).with_suffix(".cache")
-
-    # if we're in an interactive session, we store the cache in
-    # <cwd>/.cache/<function-name>
-    if path.name == "<stdin>":
-        path = Path.cwd() / ".cache"
+    path = Path(file).with_suffix(".cache")
 
     # if we're in a notebook, we store the cache in
     # <cwd>/notebook.cache/<function-name>
-    if "ipykernel" in str(path):
+    if "ipykernel" in file:
         path = Path.cwd() / "notebook.cache"
 
     return path / func.__name__
