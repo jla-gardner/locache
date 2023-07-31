@@ -11,3 +11,5 @@ scratch*
 
 .coverage
 coverage.xml
+
+*.sh
