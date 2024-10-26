@@ -120,6 +120,9 @@ def persist(
             # remove files if we're over the size limit
             if max_entries > 0:
                 to_delete = len(all_files) - max_entries
+                _logger.info(
+                    f"deleting {all_files[:to_delete]} to keep {max_entries} entries"
+                )
                 for file in all_files[:to_delete]:
                     os.remove(file)
                 all_files = all_files[to_delete:]

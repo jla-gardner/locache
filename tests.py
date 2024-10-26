@@ -45,7 +45,7 @@ def test_default_behaviour():
     ), "should be two entries"
 
 
-def test_configured_behaviour(capsys):
+def test_configured_behaviour(capsys, caplog):
     @persist(max_entries=1)
     def squared(a):
         print(a)
@@ -66,6 +66,9 @@ def test_configured_behaviour(capsys):
     _files = list((_cache_root / "squared").glob("*.pkl"))
     assert len(_files) == 1, f"should be one entry, but found {_files}"
 
+    assert "deleting" in caplog.text, "deletion should be logged"
+    caplog.clear()
+
     # cache miss
     squared(1)
     assert "1" in capsys.readouterr().out, "function should be called"
@@ -83,6 +86,8 @@ def test_configured_behaviour(capsys):
     # should already have been removed due to 0 age
     _files = list((_cache_root / "cubed").glob("*.pkl"))
     assert len(_files) == 0, f"should be no entries, but found {_files}"
+    assert "deleting" in caplog.text, "deletion should be logged"
+    caplog.clear()
 
     cubed(1)
     assert "1" in capsys.readouterr().out, "function should be re-called"
