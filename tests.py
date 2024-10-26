@@ -16,7 +16,7 @@ def reset_env():
     verbose(False)
 
 
-def test_cache_behaviour():
+def test_default_behaviour():
     num_calls = 0
 
     @persist
@@ -33,6 +33,27 @@ def test_cache_behaviour():
 
     assert squared(4) == 16, "function not working"
     assert num_calls == 2, "function should be called again"
+
+
+def test_configured_behaviour(capsys):
+    @persist(max_size=1)
+    def squared(a):
+        print(a)
+        return a**2
+
+    # caching a single value should work
+    squared(1)
+    assert "1" in capsys.readouterr().out, "function should be called"
+    squared(1)
+    assert capsys.readouterr().out == "", "function should be cached"
+
+    # hit another value: this should evict the first value
+    squared(2)
+    assert "2" in capsys.readouterr().out, "function should be called"
+
+    # cache miss
+    squared(1)
+    assert "1" in capsys.readouterr().out, "function should be called"
 
 
 def test_code_redefinition(capsys):

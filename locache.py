@@ -8,7 +8,7 @@ import shutil
 import time
 from hashlib import sha256
 from pathlib import Path
-from typing import Callable
+from typing import Callable, TypeVar, overload
 
 __all__ = ["persist", "verbose", "reset"]
 __version__ = "3.0.1"
@@ -22,15 +22,35 @@ _logger.addHandler(logging.StreamHandler())
 _IS_BASE_FUNC = "__is_base_func"
 
 
-def persist(func: Callable):
+T = TypeVar("T")
+
+
+@overload
+def persist(func: Callable[..., T]) -> Callable[..., T]: ...
+@overload
+def persist(
+    *,
+    max_size: int = 100,
+    max_age: int = 365,
+) -> Callable[[Callable[..., T]], Callable[..., T]]: ...
+def persist(
+    func: Callable[..., T] | None = None,
+    *,
+    max_size: int = 100,
+    max_age: int = 365,
+) -> Callable[..., T] | Callable[[Callable[..., T]], Callable[..., T]]:
     """
     decorator for caching expensive function calls to disk
 
     Parameters
     ----------
-    func
+    func : Callable, optional
         the function to cache. In order to be cache-able,
         all arguments and return value must be pickleable.
+    max_size : int, optional
+        maximum number of cached results to keep, by default 100
+    max_age : int, optional
+        maximum age of cached results to keep, in days, by default 365
 
     Returns
     -------
@@ -38,81 +58,81 @@ def persist(func: Callable):
         the decorated function
     """
 
-    # we cache the results of this function call to files
-    # in a directory directly associated with the function
-    location = _get_cache_location_for(func)
-    if location is None:
-        _logger.warning(
-            "Unable to find the definition of this function. "
-            "Perhaps you defined it in the REPL? (This is not "
-            "supported.) No caching will happen. Please "
-            "raise an issue, if you think this should be "
-            "working, at https://github.com/jla-gardner/locache/issues",
-        )
-        return func
+    def decorator(f: Callable):
+        # we cache the results of this function call to files
+        # in a directory directly associated with the function
+        location = _get_cache_location_for(f)
+        if location is None:
+            _logger.warning(
+                "Unable to find the definition of this function. "
+                "Perhaps you defined it in the REPL? (This is not "
+                "supported.) No caching will happen. Please "
+                "raise an issue, if you think this should be "
+                "working, at https://github.com/jla-gardner/locache/issues",
+            )
+            return f
 
-    # mark this as the base function for caching:
-    # this lets us unwrap any decorators that are applied
-    # on top of @persist in a reliable fashion (see reset)
-    setattr(func, _IS_BASE_FUNC, True)
+        # mark this as the base function for caching:
+        # this lets us unwrap any decorators that are applied
+        # on top of @persist in a reliable fashion (see reset)
+        setattr(f, _IS_BASE_FUNC, True)
 
-    MAX_CACHE_SIZE = 100
-    OLD_AGE = 365  # days
+        @functools.wraps(f)
+        def wrapper(*args, **kwargs):
+            _logger.debug(f"caching {f.__name__} to {location}")
 
-    @functools.wraps(func)
-    def wrapper(*args, **kwargs):
-        _logger.debug(f"caching {func.__name__} to {location}")
+            location.mkdir(parents=True, exist_ok=True)
 
-        location.mkdir(parents=True, exist_ok=True)
+            # within this directory, we use a hash of the function's
+            # source code and arguments as a unique identifier for this
+            # particular function call
+            source_code = inspect.getsource(f)
+            dump = pickle.dumps((source_code, args, kwargs))
+            hash = sha256(dump).hexdigest()[:32]
 
-        # within this directory, we use a hash of the function's
-        # source code and arguments as a unique identifier for this
-        # particular function call
-        source_code = inspect.getsource(func)
-        dump = pickle.dumps((source_code, args, kwargs))
-        hash = sha256(dump).hexdigest()[:32]
+            # we save the result of this function call to a file
+            # with this unique identifier as the filename
+            file_path = location / f"{hash}.pkl"
 
-        # we save the result of this function call to a file
-        # with this unique identifier as the filename
-        file_path = location / f"{hash}.pkl"
+            if file_path.exists():
+                _logger.debug(f"cache hit for {f.__name__} with {args}, {kwargs}")
+                with open(file_path, "rb") as file:
+                    result = pickle.load(file)
 
-        if file_path.exists():
-            _logger.debug(f"cache hit for {func.__name__} with {args}, {kwargs}")
-            with open(file_path, "rb") as f:
-                result = pickle.load(f)
+            else:
+                _logger.debug(f"cache miss for {f.__name__} with {args}, {kwargs}")
+                result = f(*args, **kwargs)
+                with open(file_path, "wb") as file:
+                    pickle.dump(result, file)
 
-        else:
-            _logger.debug(f"cache miss for {func.__name__} with {args}, {kwargs}")
-            result = func(*args, **kwargs)
-            with open(file_path, "wb") as f:
-                pickle.dump(result, f)
+            # before returning the result, we clean up the cache:
 
-        # before returning the result, we clean up the cache:
+            # some OS settings disable routine writing to st_atime
+            # (i.e. the file's last access time) so instead we update
+            # the file's last modified time
+            file_path.touch()
 
-        # some OS settings disable routine writing to st_atime
-        # (i.e. the file's last access time) so instead we update
-        # the file's last modified time
-        file_path.touch()
+            # list files in order of last touched ascending
+            all_files = sorted(location.glob("*.pkl"), key=lambda f: f.stat().st_mtime)
 
-        # list files in order of last touched ascending
-        all_files = sorted(location.glob("*.pkl"), key=lambda f: f.stat().st_mtime)
-
-        # remove files if we're over the size limit
-        to_delete = len(all_files) - MAX_CACHE_SIZE
-        for file in all_files[:to_delete]:
-            file.unlink()
-        all_files = all_files[to_delete:]
-
-        # delete all old files
-        now = time.time()
-        ages_days = [(now - f.stat().st_mtime) / (60 * 60 * 24) for f in all_files]
-        for age, file in zip(ages_days, all_files):
-            if age > OLD_AGE:
+            # remove files if we're over the size limit
+            to_delete = len(all_files) - max_size
+            for file in all_files[:to_delete]:
                 file.unlink()
+            all_files = all_files[to_delete:]
 
-        return result
+            # delete all old files
+            now = time.time()
+            ages_days = [(now - f.stat().st_mtime) / (60 * 60 * 24) for f in all_files]
+            for age, file in zip(ages_days, all_files):
+                if age > max_age:
+                    file.unlink()
 
-    return wrapper
+            return result
+
+        return wrapper
+
+    return decorator(func) if func is not None else decorator
 
 
 def reset(func):
