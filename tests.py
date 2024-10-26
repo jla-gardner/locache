@@ -80,11 +80,10 @@ def test_configured_behaviour(capsys):
 
     cubed(1)
     assert "1" in capsys.readouterr().out, "function should be called"
+    # should already have been removed due to 0 age
+    _files = list((_cache_root / "cubed").glob("*.pkl"))
+    assert len(_files) == 0, f"should be no entries, but found {_files}"
 
-    cubed(2)
-    assert "2" in capsys.readouterr().out, "function should be called"
-
-    # 0 age means that value for 1 should already be deleted
     cubed(1)
     assert "1" in capsys.readouterr().out, "function should be re-called"
 
