@@ -6,6 +6,8 @@ import pytest
 
 from locache import persist, reset, verbose
 
+_cache_root = Path(__file__).with_suffix(".cache")
+
 
 @pytest.fixture(autouse=True)
 def reset_env():
@@ -27,12 +29,20 @@ def test_default_behaviour():
 
     assert squared(3) == 9, "function not working"
     assert num_calls == 1, "function has been called once"
+    assert _cache_root.exists(), "cache root should exist"
+    assert (_cache_root / "squared").exists(), "cache file should exist"
+    assert (
+        len(list((_cache_root / "squared").glob("*.pkl"))) == 1
+    ), "should be one entry"
 
     assert squared(3) == 9, "function not working"
     assert num_calls == 1, "second call should be cached"
 
     assert squared(4) == 16, "function not working"
     assert num_calls == 2, "function should be called again"
+    assert (
+        len(list((_cache_root / "squared").glob("*.pkl"))) == 2
+    ), "should be two entries"
 
 
 def test_configured_behaviour(capsys):
@@ -46,14 +56,21 @@ def test_configured_behaviour(capsys):
     assert "1" in capsys.readouterr().out, "function should be called"
     squared(1)
     assert capsys.readouterr().out == "", "function should be cached"
+    assert (
+        len(list((_cache_root / "squared").glob("*.pkl"))) == 1
+    ), "should be one entry"
 
     # hit another value: this should evict the first value
     squared(2)
     assert "2" in capsys.readouterr().out, "function should be called"
+    _files = list((_cache_root / "squared").glob("*.pkl"))
+    assert len(_files) == 1, f"should be one entry, but found {_files}"
 
     # cache miss
     squared(1)
     assert "1" in capsys.readouterr().out, "function should be called"
+    _files = list((_cache_root / "squared").glob("*.pkl"))
+    assert len(_files) == 1, f"should be one entry, but found {_files}"
 
 
 def test_code_redefinition(capsys):

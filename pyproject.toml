@@ -19,7 +19,8 @@ dependencies = []
 requires-python = ">=3.8"
 
 [project.optional-dependencies]
-dev = ["pytest", "pytest-cov", "bumpver"]
+tests = ["pytest", "pytest-cov"]
+dev = ["bumpver", "ruff"]
 publish = ["twine", "build"]
 
 [project.urls]
@@ -41,3 +42,10 @@ push = false
 line-length = 88
 indent-width = 4
 target-version = "py38"
+
+
+# allow for coverage to find relevant files in both . and */site-packages
+# so that we can install the package both normally and in editable mode, and 
+# still get coverage for both cases using `pytest --cov`
+[tool.coverage.paths]
+source = [".", "*/site-packages"]

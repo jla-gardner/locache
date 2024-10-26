@@ -71,6 +71,7 @@ def persist(
                 "working, at https://github.com/jla-gardner/locache/issues",
             )
             return f
+        _logger.debug(f"caching {f.__name__} to {location}")
 
         # mark this as the base function for caching:
         # this lets us unwrap any decorators that are applied
