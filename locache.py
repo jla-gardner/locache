@@ -125,13 +125,15 @@ def persist(
                 for file in deletions:
                     os.remove(file)
                 all_files = all_files[to_delete:]
-                _logger.info(f"remaining files: {all_files}")
 
             # delete all old files
             now = time.time()
             ages_days = [(now - f.stat().st_mtime) // (60 * 60 * 24) for f in all_files]
             for age, file in zip(ages_days, all_files):
                 if age >= max_age:
+                    _logger.info(
+                        f"deleting {file} because it is {age}(>={max_age}) days old"
+                    )
                     os.remove(file)
 
             return result

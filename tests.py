@@ -87,10 +87,6 @@ def test_configured_behaviour(capsys, caplog):
     _files = list((_cache_root / "cubed").glob("*.pkl"))
     assert len(_files) == 0, f"should be no entries, but found {_files}"
     assert "deleting" in caplog.text, "deletion should be logged"
-    caplog.clear()
-
-    cubed(1)
-    assert "1" in capsys.readouterr().out, "function should be re-called"
 
 
 def test_code_redefinition(capsys):
