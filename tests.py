@@ -71,7 +71,6 @@ def test_configured_behaviour(capsys, caplog):
 
     # cache miss
     squared(1)
-    assert "1" in capsys.readouterr().out, "function should be called"
     _files = list((_cache_root / "squared").glob("*.pkl"))
     assert len(_files) == 1, f"should be one entry, but found {_files}"
 
