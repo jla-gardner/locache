@@ -118,14 +118,14 @@ def persist(
             all_files = sorted(location.glob("*.pkl"), key=lambda f: f.stat().st_mtime)
 
             # remove files if we're over the size limit
-            if max_entries > 0:
-                to_delete = len(all_files) - max_entries
-                _logger.info(
-                    f"deleting {all_files[:to_delete]} to keep {max_entries} entries"
-                )
-                for file in all_files[:to_delete]:
+            to_delete = len(all_files) - max_entries
+            if max_entries > 0 and to_delete > 0:
+                deletions = all_files[:to_delete]
+                _logger.info(f"deleting {deletions} to keep {max_entries} entries")
+                for file in deletions:
                     os.remove(file)
                 all_files = all_files[to_delete:]
+                _logger.info(f"remaining files: {all_files}")
 
             # delete all old files
             now = time.time()
