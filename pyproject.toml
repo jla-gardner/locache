@@ -15,11 +15,12 @@ classifiers = [
     "Programming Language :: Python :: 3",
 ]
 keywords = ["cache", "disk"]
-dependencies = ["astor"]
-requires-python = ">=3.6"
+dependencies = []
+requires-python = ">=3.8"
 
 [project.optional-dependencies]
 dev = ["pytest", "pytest-cov", "bumpver"]
+publish = ["twine", "build"]
 
 [project.urls]
 Homepage = "https://github.com/jla-gardner/locache"
@@ -27,7 +28,7 @@ Homepage = "https://github.com/jla-gardner/locache"
 [tool.bumpver]
 current_version = "3.0.1"
 version_pattern = "MAJOR.MINOR.PATCH"
-commit_message = "Bump version {old_version} -> {new_version}"
+commit_message = "bump {old_version} -> {new_version}"
 commit = true
 tag = true
 push = false
@@ -35,3 +36,8 @@ push = false
 [tool.bumpver.file_patterns]
 "pyproject.toml" = ['current_version = "{version}"', 'version = "{version}"']
 "locache.py" = ["{version}"]
+
+[tool.ruff]
+line-length = 88
+indent-width = 4
+target-version = "py38"
