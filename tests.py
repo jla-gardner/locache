@@ -1,3 +1,4 @@
+import functools
 import shutil
 from pathlib import Path
 
@@ -34,6 +35,35 @@ def test_cache_behaviour():
     assert num_calls == 2, "function should be called again"
 
 
+def test_code_redefinition(capsys):
+    @persist
+    def squared(a):  # type: ignore
+        print(a)
+        return a**2
+
+    squared(3)
+    assert "3" in capsys.readouterr().out, "function should be called"
+
+    # redefine the function
+    @persist
+    def squared(a):  # type: ignore
+        print("different")
+        return a**2
+
+    squared(3)
+    assert "different" in capsys.readouterr().out, "function should be called"
+
+    # redefine the function again back to the original,
+    # using **exactly** the same code
+    @persist
+    def squared(a):  # type: ignore
+        print(a)
+        return a**2
+
+    squared(3)
+    assert capsys.readouterr().out == "", "this should have been cached"
+
+
 def test_verbosity(caplog):
     @persist
     def squared(a):
@@ -41,18 +71,6 @@ def test_verbosity(caplog):
 
     squared(3)
     assert caplog.text == "", "no logging should happen by default"
-
-    # if the function changes, and we are resetting the cache
-    # this should be logged no matter what
-    @persist
-    def squared(a):
-        a += 1
-        return a**2
-
-    squared(3)
-    assert (
-        "detected a change" in caplog.text
-    ), "resetting cache should be logged"
 
     # if we set verbose=True, we should see the cache miss...
     verbose(True)
@@ -69,7 +87,7 @@ def test_verbosity(caplog):
     assert caplog.text.count("cache miss") == 1, "logging should be off again"
 
 
-def test_reset():
+def test_reset_behaviour():
     num_calls = 0
 
     @persist
@@ -92,6 +110,51 @@ def test_reset():
     assert num_calls == 3, "function should be called again"
 
 
+def test_reset_errors(caplog):
+    def foo():
+        pass
+
+    reset(foo)
+    assert (
+        "passed a function that is not decorated at all" in caplog.text
+    ), "error should be logged"
+
+    def improper_decorator(func):
+        # use a wrapper that doesn't propagate the __wrapped__ attribute
+        # due to a lack of @functools.wraps
+        def wrapper(*args, **kwargs):
+            return func(*args, **kwargs)
+
+        return wrapper
+
+    @improper_decorator
+    @persist
+    def bar():
+        pass
+
+    caplog.clear()
+    reset(bar)
+    assert (
+        "decorator on top of @persist that does not" in caplog.text
+    ), "error should be logged"
+
+    def proper_decorator(func):
+        @functools.wraps(func)
+        def wrapper(*args, **kwargs):
+            return func(*args, **kwargs)
+
+        return wrapper
+
+    @proper_decorator
+    @persist
+    def baz():
+        pass
+
+    caplog.clear()
+    reset(baz)
+    assert caplog.text == "", "no error should be logged"
+
+
 def test_normal_location():
     @persist
     def squared(a):
@@ -100,33 +163,6 @@ def test_normal_location():
     squared(3)
     location = Path(__file__).with_suffix(".cache") / "squared"
     assert location.exists(), "cache location should exist"
-    assert (location / ".code.py").exists(), "code file should exist"
-
-
-def test_no_change():
-    num_calls = 0
-
-    @persist
-    def squared(a):
-        nonlocal num_calls
-        num_calls += 1
-        return a**2
-
-    squared(3)
-
-    @persist
-    def squared(a):
-        nonlocal num_calls
-        num_calls += 1
-        return a**2
-
-    squared(3)
-    assert num_calls == 1, "function should not be called again"
-
-
-# mock some functions to mimic being in a REPL and notebook environment
-
-# mock inspect.getfile
 
 
 @pytest.fixture
@@ -142,7 +178,9 @@ def test_in_repl(in_repl, caplog):
     def squared(a):
         return a**2
 
-    assert "not supported" in caplog.text, "REPL should not be supported"
+    assert (
+        "Unable to find the definition of this function." in caplog.text
+    ), "REPL should not be supported"
 
     # test that we can still use the function
     assert squared(3) == 9, "function not working"

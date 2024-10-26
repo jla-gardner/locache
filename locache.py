@@ -1,14 +1,25 @@
+from __future__ import annotations
+
+import functools
 import inspect
 import logging
 import pickle
 import shutil
-from functools import wraps
+import time
 from hashlib import sha256
 from pathlib import Path
-from typing import Callable, Optional
+from typing import Callable
 
 __all__ = ["persist", "verbose", "reset"]
 __version__ = "3.0.1"
+
+
+_logger = logging.getLogger(f"{__name__} : local_cache")
+_logger.setLevel(logging.INFO)
+_logger.addHandler(logging.StreamHandler())
+
+
+_IS_BASE_FUNC = "__is_base_func"
 
 
 def persist(func: Callable):
@@ -17,7 +28,7 @@ def persist(func: Callable):
 
     Parameters
     ----------
-    func : Callable
+    func
         the function to cache. In order to be cache-able,
         all arguments and return value must be pickleable.
 
@@ -27,27 +38,77 @@ def persist(func: Callable):
         the decorated function
     """
 
-    location = _prepare_cache_location(func)
-
+    # we cache the results of this function call to files
+    # in a directory directly associated with the function
+    location = _get_cache_location_for(func)
     if location is None:
-        # if the cache location can't be prepared, we just
-        # return the original function
+        _logger.warning(
+            "Unable to find the definition of this function. "
+            "Perhaps you defined it in the REPL? (This is not "
+            "supported.) No caching will happen. Please "
+            "raise an issue, if you think this should be "
+            "working, at https://github.com/jla-gardner/locache/issues",
+        )
         return func
 
-    @wraps(func)
-    def wrapper(*args, **kwargs):
-        cache_path = location / _get_hash(args, kwargs)
+    # mark this as the base function for caching:
+    # this lets us unwrap any decorators that are applied
+    # on top of @persist in a reliable fashion (see reset)
+    setattr(func, _IS_BASE_FUNC, True)
 
-        if cache_path.exists():
-            log(f"cache hit for {func.__name__} with {args}, {kwargs}")
-            with open(cache_path, "rb") as f:
+    MAX_CACHE_SIZE = 100
+    OLD_AGE = 365  # days
+
+    @functools.wraps(func)
+    def wrapper(*args, **kwargs):
+        _logger.debug(f"caching {func.__name__} to {location}")
+
+        location.mkdir(parents=True, exist_ok=True)
+
+        # within this directory, we use a hash of the function's
+        # source code and arguments as a unique identifier for this
+        # particular function call
+        source_code = inspect.getsource(func)
+        dump = pickle.dumps((source_code, args, kwargs))
+        hash = sha256(dump).hexdigest()[:32]
+
+        # we save the result of this function call to a file
+        # with this unique identifier as the filename
+        file_path = location / f"{hash}.pkl"
+
+        if file_path.exists():
+            _logger.debug(f"cache hit for {func.__name__} with {args}, {kwargs}")
+            with open(file_path, "rb") as f:
                 result = pickle.load(f)
 
         else:
-            log(f"cache miss for {func.__name__} with {args}, {kwargs}")
+            _logger.debug(f"cache miss for {func.__name__} with {args}, {kwargs}")
             result = func(*args, **kwargs)
-            with open(cache_path, "wb") as f:
+            with open(file_path, "wb") as f:
                 pickle.dump(result, f)
+
+        # before returning the result, we clean up the cache:
+
+        # some OS settings disable routine writing to st_atime
+        # (i.e. the file's last access time) so instead we update
+        # the file's last modified time
+        file_path.touch()
+
+        # list files in order of last touched ascending
+        all_files = sorted(location.glob("*.pkl"), key=lambda f: f.stat().st_mtime)
+
+        # remove files if we're over the size limit
+        to_delete = len(all_files) - MAX_CACHE_SIZE
+        for file in all_files[:to_delete]:
+            file.unlink()
+        all_files = all_files[to_delete:]
+
+        # delete all old files
+        now = time.time()
+        ages_days = [(now - f.stat().st_mtime) / (60 * 60 * 24) for f in all_files]
+        for age, file in zip(ages_days, all_files):
+            if age > OLD_AGE:
+                file.unlink()
 
         return result
 
@@ -63,52 +124,43 @@ def reset(func):
     func : Callable
         the function to reset the cache for
     """
-    # unwrap the function if it's wrapped by @persist
-    func = getattr(func, "__wrapped__", func)
-    _prepare_cache_location(func, reset=True)
 
+    # unwrap the function (optionally multiply decorated) func
+    # until we get to the function that would have been passed
+    # to @persist
 
-def _prepare_cache_location(func, reset=False) -> Optional[Path]:
-    """
-    Prepare the cache location for a function
-    """
+    og_func = func
+    removed = False
+    while not removed:
+        new_func = getattr(func, "__wrapped__", None)
+        removed = getattr(func, _IS_BASE_FUNC, False)
+        if removed:
+            func = new_func
+            break
 
-    location = _get_cache_location_for(func)
-    if location is None:
-        log(
-            f"locache is not supported for functions defined in the REPL",
-            level=logging.WARNING,
-        )
-        return None
-
-    code_file = location / ".code.py"
-    old_code = code_file.read_text() if code_file.exists() else None
-    new_code = inspect.getsource(func)
-
-    if location.exists() and old_code is not None:
-        if old_code == new_code and not reset:
-            # nothing to do
-            return location
-
-        if old_code != new_code:
-            log(
-                f"detected a change in {func.__name__}'s code",
-                level=logging.WARNING,
+        if new_func is None:
+            _logger.warning(
+                f"While attempting to unwrap {og_func.__name__}, "
+                "we found that the __wrapped__ attribute was not "
+                f"properly propagated through {func.__name__}. This suggests "
+                "that:\n (a) you are using a decorator on top of @persist that does not "
+                "set the __wrapped__ attribute, using e.g. functools.wraps\n (b) you "
+                "have passed a function that is not decorated at all.\n"
+                "We can't access the actual function that is being cached, "
+                "and therefore no cache will be reset. "
             )
-            reset = True
+            return
 
-    if reset:
-        log(f"resetting the cache for {func.__name__}", level=logging.WARNING)
+        func = new_func
+
+    # func is now the actual function that would have been
+    # passed to @persist
+    location = _get_cache_location_for(func)
+    if location is not None:
         shutil.rmtree(location, ignore_errors=True)
 
-    location.mkdir(parents=True, exist_ok=True)
-    code_file.write_text(new_code)
-    log(f"created cache for {func.__name__}: {location}")
 
-    return location
-
-
-def _get_cache_location_for(func) -> Optional[Path]:
+def _get_cache_location_for(func) -> Path | None:
     """
     get the cache location for a function
 
@@ -120,9 +172,16 @@ def _get_cache_location_for(func) -> Optional[Path]:
     ----------
     func : Callable
         the function to cache
+
+
+    Returns
+    -------
+    Path | None
+        the cache location, or None if the function is defined
+        in the REPL / can't be found
     """
 
-    file: str = inspect.getfile(func)
+    file = inspect.getfile(func)
 
     # filter out if in a REPL
     if file == "<stdin>":
@@ -140,33 +199,6 @@ def _get_cache_location_for(func) -> Optional[Path]:
     return path / func.__name__
 
 
-def _get_hash(args, kwargs) -> str:
-    """
-    get a hash of the function arguments
-
-    Parameters
-    ----------
-    args : tuple
-        the positional arguments
-    kwargs : dict
-        the keyword arguments
-
-    Returns
-    -------
-    str
-        the hash of the arguments
-    """
-
-    dump = pickle.dumps((args, kwargs))
-    return sha256(dump).hexdigest()[:32]
-
-
-# LOGGING
-_logger = logging.getLogger(f"{__name__} : local_cache")
-_logger.setLevel(logging.INFO)
-_logger.addHandler(logging.StreamHandler())
-
-
 def verbose(yes=True):
     """
     set the verbosity of the logging
@@ -177,15 +209,3 @@ def verbose(yes=True):
         whether to log or not, by default True
     """
     _logger.setLevel(logging.DEBUG if yes else logging.INFO)
-
-
-def log(msg: str, level=logging.DEBUG):
-    """
-    log a message
-
-    Parameters
-    ----------
-    msg : str
-        the message to log
-    """
-    _logger.log(level, msg)
