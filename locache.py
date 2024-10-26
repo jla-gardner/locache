@@ -30,13 +30,13 @@ def persist(func: Callable[..., T]) -> Callable[..., T]: ...
 @overload
 def persist(
     *,
-    max_size: int = 100,
+    max_entries: int = 100,
     max_age: int = 365,
 ) -> Callable[[Callable[..., T]], Callable[..., T]]: ...
 def persist(
     func: Callable[..., T] | None = None,
     *,
-    max_size: int = 100,
+    max_entries: int = -1,
     max_age: int = 365,
 ) -> Callable[..., T] | Callable[[Callable[..., T]], Callable[..., T]]:
     """
@@ -48,7 +48,7 @@ def persist(
         the function to cache. In order to be cache-able,
         all arguments and return value must be pickleable.
     max_size : int, optional
-        maximum number of cached results to keep, by default 100
+        maximum number of cached results to keep, by default -1 (no limit)
     max_age : int, optional
         maximum age of cached results to keep, in days, by default 365
 
@@ -116,10 +116,11 @@ def persist(
             all_files = sorted(location.glob("*.pkl"), key=lambda f: f.stat().st_mtime)
 
             # remove files if we're over the size limit
-            to_delete = len(all_files) - max_size
-            for file in all_files[:to_delete]:
-                file.unlink()
-            all_files = all_files[to_delete:]
+            if max_entries > 0:
+                to_delete = len(all_files) - max_entries
+                for file in all_files[:to_delete]:
+                    file.unlink()
+                all_files = all_files[to_delete:]
 
             # delete all old files
             now = time.time()

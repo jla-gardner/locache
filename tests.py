@@ -36,7 +36,7 @@ def test_default_behaviour():
 
 
 def test_configured_behaviour(capsys):
-    @persist(max_size=1)
+    @persist(max_entries=1)
     def squared(a):
         print(a)
         return a**2
