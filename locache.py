@@ -3,6 +3,7 @@ from __future__ import annotations
 import functools
 import inspect
 import logging
+import os
 import pickle
 import shutil
 import time
@@ -120,15 +121,15 @@ def persist(
             if max_entries > 0:
                 to_delete = len(all_files) - max_entries
                 for file in all_files[:to_delete]:
-                    file.unlink()
+                    os.remove(file)
                 all_files = all_files[to_delete:]
 
             # delete all old files
             now = time.time()
-            ages_days = [(now - f.stat().st_mtime) / (60 * 60 * 24) for f in all_files]
+            ages_days = [(now - f.stat().st_mtime) // (60 * 60 * 24) for f in all_files]
             for age, file in zip(ages_days, all_files):
-                if age > max_age:
-                    file.unlink()
+                if age >= max_age:
+                    os.remove(file)
 
             return result
 

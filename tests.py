@@ -72,6 +72,22 @@ def test_configured_behaviour(capsys):
     _files = list((_cache_root / "squared").glob("*.pkl"))
     assert len(_files) == 1, f"should be one entry, but found {_files}"
 
+    # test age limit
+    @persist(max_age=0)
+    def cubed(a):
+        print(a)
+        return a**3
+
+    cubed(1)
+    assert "1" in capsys.readouterr().out, "function should be called"
+
+    cubed(2)
+    assert "2" in capsys.readouterr().out, "function should be called"
+
+    # 0 age means that value for 1 should already be deleted
+    cubed(1)
+    assert "1" in capsys.readouterr().out, "function should be re-called"
+
 
 def test_code_redefinition(capsys):
     @persist
