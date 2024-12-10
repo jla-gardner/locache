@@ -89,7 +89,14 @@ def persist(
             # source code and arguments as a unique identifier for this
             # particular function call
             source_code = inspect.getsource(f)
-            dump = pickle.dumps((source_code, args, kwargs))
+            try:
+                dump = pickle.dumps((source_code, args, kwargs))
+            except Exception as e:
+                _logger.warning(
+                    f"Failed to pickle arguments your inputs ({args}, {kwargs}). "
+                    "Falling back to calling the function directly."
+                )
+                return f(*args, **kwargs)
             hash = sha256(dump).hexdigest()[:32]
 
             # we save the result of this function call to a file
