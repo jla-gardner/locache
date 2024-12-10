@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Callable, TypeVar, overload
 
 __all__ = ["persist", "verbose", "reset"]
-__version__ = "4.0.0"
+__version__ = "4.0.1"
 
 
 _logger = logging.getLogger(f"{__name__} : local_cache")
