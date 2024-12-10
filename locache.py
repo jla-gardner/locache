@@ -91,7 +91,7 @@ def persist(
             source_code = inspect.getsource(f)
             try:
                 dump = pickle.dumps((source_code, args, kwargs))
-            except Exception as e:
+            except Exception:
                 _logger.warning(
                     f"Failed to pickle arguments your inputs ({args}, {kwargs}). "
                     "Falling back to calling the function directly."
