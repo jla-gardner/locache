@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "locache"
-version = "4.0.1"
+version = "4.0.2"
 description = "Cache expensive function calls to disk."
 readme = "README.md"
 authors = [{ name = "John Gardner", email = "gardner.john97@gmail.com" }]
@@ -27,7 +27,7 @@ publish = ["twine", "build"]
 Homepage = "https://github.com/jla-gardner/locache"
 
 [tool.bumpver]
-current_version = "4.0.1"
+current_version = "4.0.2"
 version_pattern = "MAJOR.MINOR.PATCH"
 commit_message = "bump {old_version} -> {new_version}"
 commit = true
