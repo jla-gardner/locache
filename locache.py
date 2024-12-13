@@ -103,12 +103,20 @@ def persist(
             # with this unique identifier as the filename
             file_path = location / f"{hash}.pkl"
 
+            result = None
             if file_path.exists():
                 _logger.debug(f"cache hit for {f.__name__} with {args}, {kwargs}")
-                with open(file_path, "rb") as file:
-                    result = pickle.load(file)
+                try:
+                    with open(file_path, "rb") as file:
+                        result = pickle.load(file)
+                except Exception:
+                    _logger.warning(
+                        f"Failed to unpickle result from {file_path}. "
+                        f"Calling {f.__name__} directly, "
+                        "and overwriting the cache with the new result."
+                    )
 
-            else:
+            if result is None:
                 _logger.debug(f"cache miss for {f.__name__} with {args}, {kwargs}")
                 result = f(*args, **kwargs)
                 with open(file_path, "wb") as file:

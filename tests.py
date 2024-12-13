@@ -1,6 +1,7 @@
 import functools
 import shutil
 from pathlib import Path
+from typing import NamedTuple
 
 import pytest
 
@@ -256,3 +257,39 @@ def test_in_notebook(in_notebook):
         return a**2
 
     assert squared(3) == 9, "function not working"
+
+
+class Foo(NamedTuple):
+    a: int
+
+
+def create_foo():
+    return Foo(1)
+
+
+class Bar(NamedTuple):
+    a: int
+    b: int
+
+
+def create_bar():
+    return Bar(1, 2)
+
+
+def test_error_handling(caplog):
+    global create_foo, create_bar, Foo, Bar
+
+    @persist
+    def dummy():
+        return create_foo()
+
+    assert dummy().a == 1, "function not working"
+
+    # now we over-ride the function and class
+    create_foo = create_bar  # type: ignore
+    Foo = Bar  # type: ignore
+
+    # and hit the cache: this should cause an error
+    # when un-pickling, which we need to handle
+    assert dummy().b == 2, "function not working"  # type: ignore
+    assert "Failed to unpickle result from" in caplog.text, "error should be logged"
